@@ -1,23 +1,39 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, DropdownComponent, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import OpenAI from 'openai';
+
+let openai: OpenAI
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
-	mySetting: string;
+interface OpenAIAssistantSettings {
+	openAIApiKey: string;
+	assistantID: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: OpenAIAssistantSettings = {
+	openAIApiKey: '',
+	assistantID: ''
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+interface SettingsPane {
+	assistants: Array<OpenAI.Beta.Assistants.Assistant>
+}
+const settingsPane: SettingsPane = {
+	assistants: []
+}
+
+let status = ''
+let assistant: OpenAI.Beta.Assistants.Assistant | null = null
+let assistants: OpenAI.Beta.Assistants.Assistant[]
+
+export default class OpenAIAssistant extends Plugin {
+	settings: OpenAIAssistantSettings;
 
 	async onload() {
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('brain-circuit', 'OpenAI Assistant', (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
 			new Notice('This is a notice!');
 		});
@@ -26,7 +42,7 @@ export default class MyPlugin extends Plugin {
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+		statusBarItemEl.setText(status);
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -66,7 +82,7 @@ export default class MyPlugin extends Plugin {
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new OpenAIAssistantSettingsTab(this.app, this));
 
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
@@ -84,6 +100,22 @@ export default class MyPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+		if (this.settings.openAIApiKey) {
+			try {
+				openai = new OpenAI({ apiKey: this.settings.openAIApiKey, dangerouslyAllowBrowser: true })
+			} catch (e) {
+				status = 'OpenAI Failed:' + e.message
+			}
+		}
+		if (openai) {
+			if (this.settings.assistantID) {
+				assistant = await openai.beta.assistants.retrieve(this.settings.assistantID)
+			} else {
+				assistants = (await openai.beta.assistants.list()).data
+			}
+
+		}
 	}
 
 	async saveSettings() {
@@ -97,38 +129,51 @@ class SampleModal extends Modal {
 	}
 
 	onOpen() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.setText('Woah!');
 	}
 
 	onClose() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.empty();
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+class OpenAIAssistantSettingsTab extends PluginSettingTab {
+	plugin: OpenAIAssistant;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: OpenAIAssistant) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('OpenAI API Key')
+			.setDesc('Your personal OpenAI API Key')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder('Enter your secret key')
+				.setValue(this.plugin.settings.openAIApiKey)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.openAIApiKey = value;
 					await this.plugin.saveSettings();
 				}));
+
+		if (assistant) {
+			containerEl.appendChild(document.createTextNode(assistant?.name || ''))
+		} else {
+			new Setting(containerEl)
+				.setName('Assistant')
+				.setDesc('Select existing')
+				.addDropdown(dropdown => {
+					for (const assistant of assistants) {
+						dropdown.addOption(assistant.id, `${assistant.name} (${assistant.id} ${assistant.created_at})`)
+					}
+				})
+		}
 	}
 }

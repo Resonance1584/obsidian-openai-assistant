@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-openai-assistant",
+	"name": "OpenAI Assistant",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Create an OpenAI Assistant from your vault",
+	"author": "Lewis Christie",
+	"authorUrl": "https://github.com/Resonance1584/obsidian-openai-assistant",
 	"isDesktopOnly": false
 }
